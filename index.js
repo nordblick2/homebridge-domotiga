@@ -524,8 +524,8 @@ DomotigaPlatform.prototype.doPolling = function (name) {
 			primaryservice = accessory.getService(Service.Lightbulb);
 			this.readLightState(thisDevice, function (error, value) {
 				// Update value if there's no error
-				if (!error && value !== thisDevice.cacheSwitchState) {
-					thisDevice.cacheSwitchState = value;
+				if (!error && value !== thisDevice.cacheLightState) {
+					thisDevice.cacheLightState = value;
 					primaryservice.getCharacteristic(Characteristic.On).getValue();
 				}
 			});
@@ -2081,7 +2081,7 @@ DomotigaPlatform.prototype.setLightState = function (thisDevice, value, callback
 
 }
 
-DomotigaPlatform.prototype.getLightState = function (thisDevice, callback) {
+DomotigaPlatform.prototype.readLightState = function (thisDevice, callback) {
     var self = this;
 	self.log("%s: getting light.state", thisDevice.name);
 	self.domotigaGetValue(thisDevice, "state", function (error,value){
@@ -2090,6 +2090,19 @@ DomotigaPlatform.prototype.getLightState = function (thisDevice, callback) {
 		}
 		callback(error,value);
 	});
+}
+
+DomotigaPlatform.prototype.getLightState = function (thisDevice, callback) {
+	var self = this;
+ 	if(thisDevice.polling) {
+		self.log('%s: cached light.state is: %s', thisDevice.name, thisDevice.cacheLightState);
+		callback(null, thisDevice.cacheLightState);
+	} else {
+		this.readLightState(thisDevice, function (error, value) {
+			thisDevice.cacheLightState = value;
+			callback(error, thisDevice.cacheLightState);
+		});
+	}
 }
 
 
@@ -2107,7 +2120,7 @@ DomotigaPlatform.prototype.setLightBrightness = function (thisDevice, value, cal
 
 }
 
-DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) {
+DomotigaPlatform.prototype.readLightBrightness = function (thisDevice, callback) {
     var self = this;
 	self.log("%s: getting light.brightness", thisDevice.name);
 	self.domotigaGetValue(thisDevice, "brightness", function (error,value){
@@ -2118,6 +2131,19 @@ DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) 
 			callback(null,value);
 		}
 	});
+}
+
+DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) {
+	var self = this;
+	if(thisDevice.polling) {
+		self.log('%s: cached light.brightness is: %s', thisDevice.name, thisDevice.cacheLightBrightness);
+		callback(null, thisDevice.cacheLightBrightness);
+	} else {
+		this.readLightState(thisDevice, function (error, value) {
+			thisDevice.cacheLightBrightness = value;
+			callback(error, thisDevice.cacheLightBrightness);
+		});
+	}
 }
 
 
@@ -2136,7 +2162,7 @@ DomotigaPlatform.prototype.setLightHue = function (thisDevice, value, callback) 
 
 }
 
-DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
+DomotigaPlatform.prototype.readLightHue = function (thisDevice, callback) {
     var self = this;
 	self.log("%s: getting light.hue", thisDevice.name);
 	self.domotigaGetValue(thisDevice,"hue",function (error,value){
@@ -2147,6 +2173,19 @@ DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
 			callback(null,value);
 		}
 	});
+}
+
+DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
+	var self = this;
+	if(thisDevice.polling) {
+		self.log('%s: cached light.hue is: %s', thisDevice.name, thisDevice.cacheLightHue);
+		callback(null, thisDevice.cacheLightHue);
+	} else {
+		this.readLightState(thisDevice, function (error, value) {
+			thisDevice.cacheLightHue = value;
+			callback(error, thisDevice.cacheLightHue);
+		});
+	}
 }
 
 
@@ -2165,7 +2204,7 @@ DomotigaPlatform.prototype.setLightSaturation = function (thisDevice, value, cal
 
 }
 
-DomotigaPlatform.prototype.getLightSaturation = function (thisDevice, callback) {
+DomotigaPlatform.prototype.readLightSaturation = function (thisDevice, callback) {
     var self = this;
 	self.log("%s: getting light.saturation", thisDevice.name);
 	self.domotigaGetValue(thisDevice,"saturation",function (error,value){
@@ -2176,6 +2215,19 @@ DomotigaPlatform.prototype.getLightSaturation = function (thisDevice, callback) 
 			callback(null,value);
 		}
 	}.bind(this));
+}
+
+DomotigaPlatform.prototype.getLightSaturation = function (thisDevice, callback) {
+	var self = this;
+	if(thisDevice.polling) {
+		self.log('%s: cached light.saturation is: %s', thisDevice.name, thisDevice.cacheLightSaturation);
+		callback(null, thisDevice.cacheLightSaturation);
+	} else {
+		this.readLightState(thisDevice, function (error, value) {
+			thisDevice.cacheLightSaturation = value;
+			callback(error, thisDevice.cacheLightSaturation);
+		});
+	}
 }
 
 
