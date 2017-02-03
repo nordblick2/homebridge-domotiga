@@ -15,6 +15,29 @@
             "host": "localhost",
             "port": "9090",
             "devices": [
+				{
+					"name": "Fancy color light",
+					"service": "Light",
+					"device":"id_of_lightbulb",
+					"color":true,
+					"command": "/bin/rgb.controller.sh -d $device -f $type -s $value"
+				},
+				{
+					"name": "Fancy dimmable light",
+					"service": "Light",
+					"device":"id_of_lightbulb2",
+					"brightness":true,
+					"endpoint": "http://light.controller.local/api.php"
+				},
+				{
+					"name": "fridge",
+					"service": "TemperaturSensor",
+					"device":"fridge",
+					"valueTemperature":"t1",
+					"minTemperature": 3,
+					"maxTemperature": 9,
+					"command": "/bin/read.temperature.sh"
+				},
                 {
                     "name": "Sensor garden",
                     "service": "TemperatureSensor",
@@ -25,7 +48,8 @@
                     "valueHumidity": "2",
                     "valueAirPressure": "3",
                     "valueBattery": "4",
-                    "lowbattery": "3000",
+                    "batteryVoltage": 3300,
+					"batteryVoltageLimit": 3000,
                     "polling": true,
                     "pollInMs": "1000"
                 },
@@ -117,6 +141,6 @@
             ]
         }
     ],
-    
+
     "accessories": [ ]
 }

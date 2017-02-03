@@ -267,6 +267,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 
 		// light specific config
 		accessory.context.brightness = data.brightness;
+		accessory.context.color = data.color;
 
 		// if color is enabled, we need all three properties
 		if ( accessory.context.color ) {
@@ -283,6 +284,15 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 
         // Setup HomeKit service(-s)
         switch (accessory.context.service) {
+			case "Light":
+			case "Lightbulb":
+				primaryservice = new Service.Lightbulb(accessory.context.name);
+				// valuelight isn't used -> using hard codes keywords for hue, saturation, brightness, state
+				//if (!accessory.context.valueLight) {
+				//	this.log.warn('%s: missing definition of valueLight in config.json (ignored)!', accessory.context.name);
+					//return;
+				//}
+				break;
 
             case "TemperatureSensor":
                 primaryservice = new Service.TemperatureSensor(accessory.context.name);
@@ -394,14 +404,6 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
                     return;
                 }
                 break;
-			case "Light":
-			case "Lightbulb":
-				primaryservice = new LightbulbService(accessory.context.name);
-				if (!accessory.context.valueLight) {
-					this.log.error('%s: missing definition of valueLight in config.json!', accessory.context.name);
-					return;
-					// valuelight isnt necessary ()
-				}
             default:
                 this.log.error('Service %s %s unknown, skipping...', accessory.context.service, accessory.context.name);
                 return;
@@ -415,7 +417,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         if (accessory.context.valueHumidity && (accessory.context.service != "HumiditySensor")) {
             primaryservice.addCharacteristic(Characteristic.CurrentRelativeHumidity);
         }
-        if (accessory.context.valueBattery || accessory.context.batteryVoltage) {
+        if (accessory.context.valueBattery || accessory.context.batteryVoltage) {
             primaryservice.addCharacteristic(Characteristic.BatteryLevel);
 			primaryservice.addCharacteristic(Characteristic.StatusLowBattery);
         }
@@ -532,7 +534,7 @@ DomotigaPlatform.prototype.doPolling = function (name) {
 					// Update value if there's no error
 					if (!error && value !== thisDevice.cacheLightBrightness) {
 						thisDevice.cacheLightBrightness = value;
-						primaryservice.getCharacteristic(Characteristic.On).getValue();
+						primaryservice.getCharacteristic(Characteristic.Brightness).getValue();
 					}
 				});
 			}
@@ -541,14 +543,14 @@ DomotigaPlatform.prototype.doPolling = function (name) {
 					// Update value if there's no error
 					if (!error && value !== thisDevice.cacheLightHue) {
 						thisDevice.cacheLightHue = value;
-						primaryservice.getCharacteristic(Characteristic.On).getValue();
+						primaryservice.getCharacteristic(Characteristic.Hue).getValue();
 					}
 				});
 				this.readSaturationState(thisDevice, function (error, value) {
 					// Update value if there's no error
 					if (!error && value !== thisDevice.cacheLightSaturation) {
 						thisDevice.cacheLightSaturation = value;
-						primaryservice.getCharacteristic(Characteristic.On).getValue();
+						primaryservice.getCharacteristic(Characteristic.Saturation).getValue();
 					}
 				});
 			}
@@ -823,14 +825,17 @@ DomotigaPlatform.prototype.setService = function (accessory) {
 				.on('set', this.setLightState.bind(this, accessory.context))
 			// for rgb bulbs
 			if ( accessory.context.color) {
+				this.log("--------> add hue");
 				primaryservice.getCharacteristic(Characteristic.Hue)
 					.on('get', this.getLightHue.bind(this, accessory.context))
 					.on('set', this.setLightHue.bind(this, accessory.context))
+					this.log("--------> add saturation");
 				primaryservice.getCharacteristic(Characteristic.Saturation)
 					.on('get', this.getLightSaturation.bind(this, accessory.context))
 					.on('set', this.setLightSaturation.bind(this, accessory.context))
 			}
 			if ( accessory.context.brightness || accessory.context.color ) {
+				this.log("--------> add brightness");
 				primaryservice.getCharacteristic(Characteristic.Brightness)
 					.on('get', this.getLightBrightness.bind(this, accessory.context))
 					.on('set', this.setLightBrightness.bind(this, accessory.context))
@@ -1004,7 +1009,6 @@ DomotigaPlatform.prototype.setService = function (accessory) {
                 .on('get', this.getCurrentBatteryLevel.bind(this, accessory.context));
         }
         if (accessory.context.batteryVoltageLimit) {
-			this.log("__________________mjkhgfd");
             primaryservice.getCharacteristic(Characteristic.StatusLowBattery)
                 .on('get', this.getLowBatteryStatus.bind(this, accessory.context));
         }
@@ -2065,17 +2069,13 @@ DomotigaPlatform.prototype.setWindowCoveringPosition = function (thisDevice, tar
 
 DomotigaPlatform.prototype.setLightState = function (thisDevice, value, callback) {
     var self = this;
-
-	// some little hack: for color light we need some additional data
-	var extValue = { property: "state", value: value};
-
-	self.log("%s: setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
-	self.domotigaSetValue(thisDevice, extValue, function (error,value) {
+	self.log("%s: setting light.state to %s", thisDevice.name, value);
+	self.domotigaSetValue(thisDevice, "state", value, function (error,value) {
 		if ( error) {
-			self.warn("%s: Error while setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
+			self.warn("%s: Error while setting light.state to %s", thisDevice.name, value);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 
@@ -2083,33 +2083,25 @@ DomotigaPlatform.prototype.setLightState = function (thisDevice, value, callback
 
 DomotigaPlatform.prototype.getLightState = function (thisDevice, callback) {
     var self = this;
-	var extValue = { property: "state" };
-
-	self.log("%s: getting light.%s", thisDevice.name, extValue.property);
+	self.log("%s: getting light.state", thisDevice.name);
 	self.domotigaGetValue(thisDevice, "state", function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.%s", thisDevice.name, extValue.property);
-			callback();
-		} else {
-			callbach(null,value);
+			self.warn("%s: Error while getting light.state", thisDevice.name);
 		}
+		callback(error,value);
 	});
 }
 
 
 DomotigaPlatform.prototype.setLightBrightness = function (thisDevice, value, callback) {
     var self = this;
-
-	// for light bulb we need some additional data (at least for color)
-	var extValue = { property: "brightness", value: value};
-
-	self.log("%s: setting light state to %s", thisDevice.name, extValue.property, extValue.value);
-	self.domotigaSetValue(thisDevice, extValue, function (error,value){
+	self.log("%s: setting light brightness to %s", thisDevice.name, value);
+	self.domotigaSetValue(thisDevice, "brightness", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
+			self.warn("%s: Error while setting light.brightness to %s", thisDevice.name, value);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 
@@ -2117,15 +2109,13 @@ DomotigaPlatform.prototype.setLightBrightness = function (thisDevice, value, cal
 
 DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) {
     var self = this;
-	var extValue = { property: "brightness" };
-
-	self.log("%s: getting light.%s", thisDevice.name, extValue.property);
-	self.domotigaGetValue(thisDevice, "state", function (error,value){
+	self.log("%s: getting light.brightness", thisDevice.name);
+	self.domotigaGetValue(thisDevice, "brightness", function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.%s", thisDevice.name, extValue.property);
+			self.warn("%s: Error while getting light.brightness", thisDevice.name);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 }
@@ -2134,16 +2124,13 @@ DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) 
 DomotigaPlatform.prototype.setLightHue = function (thisDevice, value, callback) {
     var self = this;
 
-	// for light bulb we need some additional data (at least for color)
-	var extValue = { property: "hue", value: value};
-
-	self.log("%s: setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
-	self.domotigaSetValue(thisDevice, extValue, function (error,value){
+	self.log("%s: setting light.hue to %s", thisDevice.name, value);
+	self.domotigaSetValue(thisDevice, "hue", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
+			self.warn("%s: Error while setting light.hue to %s", thisDevice.name, value);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 
@@ -2151,15 +2138,13 @@ DomotigaPlatform.prototype.setLightHue = function (thisDevice, value, callback) 
 
 DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
     var self = this;
-	var extValue = { property: "hue" };
-
-	self.log("%s: getting light.%s", thisDevice.name, extValue.property);
-	self.domotigaGetValue(thisDevice,"state",function (error,value){
+	self.log("%s: getting light.hue", thisDevice.name);
+	self.domotigaGetValue(thisDevice,"hue",function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.%s", thisDevice.name, extValue.property);
+			self.warn("%s: Error while getting light.hue", thisDevice.name);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 }
@@ -2168,16 +2153,13 @@ DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
 DomotigaPlatform.prototype.setLightSaturation = function (thisDevice, value, callback) {
     var self = this;
 
-	// for light bulb we need some additional data (at least for color)
-	var extValue = { property: "saturation", value: value};
-
-	self.log("%s: setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
-	self.domotigaSetValue(thisDevice,extValue,function (error,value){
+	self.log("%s: setting light.saturation to %s", thisDevice.name, value);
+	self.domotigaSetValue(thisDevice,"saturation", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.%s to %s", thisDevice.name, extValue.property, extValue.value);
+			self.warn("%s: Error while setting light.saturation to %s", thisDevice.name, value);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	});
 
@@ -2185,15 +2167,13 @@ DomotigaPlatform.prototype.setLightSaturation = function (thisDevice, value, cal
 
 DomotigaPlatform.prototype.getLightSaturation = function (thisDevice, callback) {
     var self = this;
-	var extValue = { property: "saturation" };
-
-	self.log("%s: getting light.%s", thisDevice.name, extValue.property);
-	self.domotigaGetValue(thisDevice,"state",function (error,value){
+	self.log("%s: getting light.saturation", thisDevice.name);
+	self.domotigaGetValue(thisDevice,"saturation",function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.%s", thisDevice.name, extValue.property);
+			self.warn("%s: Error while getting light.saturation", thisDevice.name);
 			callback();
 		} else {
-			callbach(null,value);
+			callback(null,value);
 		}
 	}.bind(this));
 }
@@ -2346,14 +2326,14 @@ DomotigaPlatform.prototype.domotigaSetValue = function (thisDevice, deviceValueN
 	// TODO is that ok for domotiga backend?
 	switch(typeof value){
 		case "string":
-		value = value.toLowerCase() == "off" ? 0 : 1;
-		break;
+			value = value.toLowerCase() == "off" ? 0 : 1;
+			break;
 		case "boolean":
-		value = value === false ? 0 : 1;
-		break;
-		case "numeric":
-		// nothing to do
-		break;
+			value = value === false ? 0 : 1;
+			break;
+		case "number":
+			// nothing to do
+			break;
 		default:
 		self.log.warn("%s: Don't know how to convert value of type '%s' (trying to use it as is)",thisDevice.name, typeof value);
 	}
