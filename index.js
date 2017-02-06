@@ -149,12 +149,35 @@ function DomotigaPlatform(log, config, api) {
 
     if (config) {
         // Global configuration
-        this.host = this.config.host || 'localhost';
-        this.port = this.config.port || 9090;
-		this.endpoint = this.config.endpoint || "http://" + this.host + ":" + this.port + "/";
-		// TODO: validate url if given
+		this.disableCache = this.config.disableCache || false;
+		this.debug = this.config.debug || false;
+		// ------------------------------------------------------------
+		// backend configuration
+		// ------------------------------------------------------------
+  		if ( this.config.endpoint) {
+			this.backend = "endpoint";
+			if (this.config.endpoint.toLowerCase() == "domotiga") {
+				this.endpoint = "http://localhost:9000/";
+			} else {
+				this.endpoint = this.config.endpoint;
+			}
+			// validate endpoint with a dummy request
+			self.validateEndpoint(this.endpoint,function(err,succ) {
+				if ( err ) {
+					self.log.error("config.json: Global endpoint probably invalid: %s (%s)",this.endpoint,err);
+				}
+			});
+		}
+		if (this.config.file){
+			this.backend = "file";
+		}
+		if (this.config.command){
+			this.backend = "command";
+		}
 
+		// ------------------------------------------------------------
         // Device specific configuration
+		// ------------------------------------------------------------
         this.devices = this.config.devices || [];
         this.accessories = {};
         this.polling = {};
@@ -164,6 +187,21 @@ function DomotigaPlatform(log, config, api) {
             this.api.on('didFinishLaunching', this.didFinishLaunching.bind(this));
         }
     }
+}
+
+DomotigaPlatform.prototype.validateEndpoint = function (url, callback) {
+	var self = this;
+
+	// JSONRequest throw errors in invalid url instead of returning that error in callback -> probably a bug
+	try {
+		JSONRequest(url,"", function(error,data) {
+			if ( error)
+				callback(error,false);
+		} );
+	}
+	catch(err){
+		callback("Invalid endpoint",false);
+	}
 }
 
 // Method to restore accessories from cache
@@ -181,6 +219,8 @@ DomotigaPlatform.prototype.didFinishLaunching = function () {
 
     // Add or update accessories defined in config.json
     for (var i in this.devices) this.addAccessory(this.devices[i]);
+
+	// TODO Detect config changes
 
     // Remove extra accessories in cache
     for (var name in this.accessories) {
@@ -210,18 +250,21 @@ DomotigaPlatform.prototype.didFinishLaunching = function () {
     }
 }
 
-
 // Method to add and update HomeKit accessories
 DomotigaPlatform.prototype.addAccessory = function (data) {
 
     this.log("Initializing platform accessory '" + data.name + "'...");
 
     // Retrieve accessory from cache
-    var accessory = this.accessories[data.name];
+    // var accessory = this.accessories[data.name];
+	if ( this.disableCache ===true && this.accessories[data.name] ) {
+		// always remove old accessories
+		this.removeAccessory(this.accessories[data.name],true);
+	}
+	var accessory;
 
     if (!accessory) {
-
-        var uuid = UUIDGen.generate(data.name);
+		var uuid = UUIDGen.generate(data.name);
 
         // Setup accessory category.
         accessory = new Accessory(data.name, uuid, 8);
@@ -260,10 +303,23 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         accessory.context.polling = data.polling;
         accessory.context.pollInMs = data.pollInMs || data.pollingInterval*1000 || 5000;
 
-		// backend configuration
-		accessory.context.endpoint = data.endpoint;	// --> endpoint
-		accessory.context.command = data.command;	// --> command
-		accessory.context.file = data.file;			// --> file
+		// backend configuration: use default from global config
+		accessory.context.backend = this.backend;
+		if (data.endpoint) {
+			accessory.context.backend = "endpoint";
+			accessory.context.endpoint = data.endpoint;
+		}
+		// --> command="binary"
+		if ( data.command) {
+			accessory.context.backend = "command";
+			accessory.context.command = data.command;
+		}
+		// --> file="binary"
+		if ( data.file) {
+			accessory.context.backend = "file";
+			accessory.context.file = data.file;
+			accessory.context.file_format = data.format || "json";
+		}
 
 		// light specific config
 		accessory.context.brightness = data.brightness;
@@ -423,6 +479,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         }
         // Eve characteristic (custom UUID)
         if (accessory.context.valueAirPressure && (accessory.context.service != "FakeEveWeatherSensor")) {
+			this.log("ADD PRESSURE CHARACTERISTICS: ",accessory.context.name);
             primaryservice.addCharacteristic(EveAirPressure);
         }
         // Eve characteristic (custom UUID)
@@ -481,7 +538,8 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 	accessory.context.cacheLightSaturation = 0;
 	accessory.context.cacheLightHue = 0;
 	accessory.context.cacheLightBrightness = 0;
-    // Retrieve initial state
+
+	// Retrieve initial state
     this.getInitState(accessory);
 
     // Configure state polling
@@ -492,11 +550,15 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 }
 
 // Function to remove accessory dynamically from outside event
-DomotigaPlatform.prototype.removeAccessory = function (accessory) {
+DomotigaPlatform.prototype.removeAccessory = function (accessory, isConfigChange) {
     if (accessory) {
         var name = accessory.context.name;
-        this.log.warn("Removing accessory: " + name + ". No longer reachable or configured.");
-        this.api.unregisterPlatformAccessories("homebridge-domotiga", "DomotiGa", [accessory]);
+		if ( isConfigChange ) {
+			this.log("Removing accessory for re-configuring: " + name);
+		} else {
+        	this.log.warn("Removing accessory: " + name + ". No longer reachable or configured.");
+        }
+		this.api.unregisterPlatformAccessories("homebridge-domotiga", "DomotiGa", [accessory]);
         delete this.accessories[name];
     }
 }
@@ -765,7 +827,7 @@ DomotigaPlatform.prototype.doPolling = function (name) {
     // Eve characteristic (custom UUID)
     if (accessory.context.valueAirPressure &&
         (accessory.context.service != "FakeEveWeatherSensor")) {
-        this.readCurrentAirPressure(thisDevice, function (error, value) {
+		this.readCurrentAirPressure(thisDevice, function (error, value) {
             // Update value if there's no error
             if (!error && value !== thisDevice.cacheCurrentAirPressure) {
                 thisDevice.cacheCurrentAirPressure = value;
@@ -822,23 +884,20 @@ DomotigaPlatform.prototype.setService = function (accessory) {
 			primaryservice = accessory.getService(Service.Lightbulb);
 			primaryservice.getCharacteristic(Characteristic.On)
 				.on('get', this.getLightState.bind(this, accessory.context))
-				.on('set', this.setLightState.bind(this, accessory.context))
+				.on('set', this.setLightState.bind(this, accessory.context));
 			// for rgb bulbs
 			if ( accessory.context.color) {
-				this.log("--------> add hue");
 				primaryservice.getCharacteristic(Characteristic.Hue)
 					.on('get', this.getLightHue.bind(this, accessory.context))
-					.on('set', this.setLightHue.bind(this, accessory.context))
-					this.log("--------> add saturation");
+					.on('set', this.setLightHue.bind(this, accessory.context));
 				primaryservice.getCharacteristic(Characteristic.Saturation)
 					.on('get', this.getLightSaturation.bind(this, accessory.context))
-					.on('set', this.setLightSaturation.bind(this, accessory.context))
+					.on('set', this.setLightSaturation.bind(this, accessory.context));
 			}
 			if ( accessory.context.brightness || accessory.context.color ) {
-				this.log("--------> add brightness");
 				primaryservice.getCharacteristic(Characteristic.Brightness)
 					.on('get', this.getLightBrightness.bind(this, accessory.context))
-					.on('set', this.setLightBrightness.bind(this, accessory.context))
+					.on('set', this.setLightBrightness.bind(this, accessory.context));
 			}
 			break;
 
@@ -1473,7 +1532,7 @@ DomotigaPlatform.prototype.getOutletInUse = function (thisDevice, callback) {
 }
 
 // -----------------------------------------------------------------------------
-// AIRQUALITY CONTROL
+// AIR QUALITY CONTROL
 // -----------------------------------------------------------------------------
 
 DomotigaPlatform.prototype.readCurrentAirQuality = function (thisDevice, callback) {
@@ -1653,14 +1712,13 @@ DomotigaPlatform.prototype.readCurrentBatteryLevel = function (thisDevice, callb
             callback(error);
         } else {
             thisDevice.lastBatteryLevel = (Number(result));
-            //this.log('CurrentBattery level Number(result): %s', Number(result));
             var value = parseInt(thisDevice.lastBatteryLevel * 100 / thisDevice.batteryVoltage, 10);
             if (value > 100)
                 value = 100;
             else if (value < 0)
                 value = 0;
 
-            self.log('%s: current battery level: %s', thisDevice.name, value);
+            self.log('%s: current battery level: %s (%s from %s)', thisDevice.name, value, thisDevice.lastBatteryLevel,thisDevice.batteryVoltage);
             callback(null, value);
         }
     });
@@ -1676,8 +1734,14 @@ DomotigaPlatform.prototype.getCurrentBatteryLevel = function (thisDevice, callba
     } else {
         // Check value if polling is disabled
         this.readCurrentBatteryLevel(thisDevice, function (error, value) {
-            // Update cache
-            thisDevice.cacheCurrentBatteryLevel = value;
+			if ( error) {
+				// on error set level to 0 and LowBattery to low
+				thisDevice.cacheCurrentBatteryLevel = 0;
+				thisDevice.cacheStatusLowBattery = Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW;
+			} else {
+				// Update cache
+				thisDevice.cacheCurrentBatteryLevel = value;
+			}
             callback(error, thisDevice.cacheCurrentBatteryLevel);
         });
     }
@@ -1687,9 +1751,14 @@ DomotigaPlatform.prototype.readLowBatteryStatus = function (thisDevice, callback
     var self = this;
     self.log("%s: getting battery status...", thisDevice.name);
 	if ( thisDevice.lastBatteryLevel < thisDevice.batteryVoltageLimit) {
-		self.log("%s: Low battery detected (%s/%s)",thisDevice.name,thisDevice.lastBatteryLevel,thisDevice.batteryVoltageLimit);
+		self.log("%s: Low battery detected (%s/%s, %d)",
+			thisDevice.name,thisDevice.lastBatteryLevel,thisDevice.batteryVoltageLimit,
+			thisDevice.lastBatteryLevel / thisDevice.batteryVoltageLimit
+
+		);
 		callback(null, Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW);
 	} else {
+		self.log("%s: Battery level normal (%s Limit: %s)",thisDevice.lastBatteryLevel,thisDevice.batteryVoltageLimit);
 		callback(null, Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL);
 	}
 }
@@ -1762,11 +1831,8 @@ DomotigaPlatform.prototype.readSwitchState = function (thisDevice, callback) {
             self.log.error('%s: readSwitchState failed: %s', thisDevice.name, error.message);
             callback(error);
         } else {
-
-            var value = (result.toLowerCase() == "on") ? 1 : 0;
-
-            self.log('%s: switch state: %s', thisDevice.name, value);
-            callback(null, value);
+			self.log('%s: switch state: %s', thisDevice.name, result);
+            callback(null, result);
         }
     });
 }
@@ -2062,9 +2128,10 @@ DomotigaPlatform.prototype.setWindowCoveringPosition = function (thisDevice, tar
     });
 }
 
-
 // -----------------------------------------------------------------------------
-// LIGHTBULB (TODO caching)
+// LIGHTBULB
+// read -> read data from device and return
+// get 	-> return current (from read) or cached value
 // -----------------------------------------------------------------------------
 
 DomotigaPlatform.prototype.setLightState = function (thisDevice, value, callback) {
@@ -2072,7 +2139,7 @@ DomotigaPlatform.prototype.setLightState = function (thisDevice, value, callback
 	self.log("%s: setting light.state to %s", thisDevice.name, value);
 	self.domotigaSetValue(thisDevice, "state", value, function (error,value) {
 		if ( error) {
-			self.warn("%s: Error while setting light.state to %s", thisDevice.name, value);
+			self.log.warn("%s: Error while setting light.state to %s", thisDevice.name, value);
 			callback();
 		} else {
 			callback(null,value);
@@ -2086,7 +2153,7 @@ DomotigaPlatform.prototype.readLightState = function (thisDevice, callback) {
 	self.log("%s: getting light.state", thisDevice.name);
 	self.domotigaGetValue(thisDevice, "state", function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.state", thisDevice.name);
+			self.log.warn("%s: Error while getting light.state", thisDevice.name);
 		}
 		callback(error,value);
 	});
@@ -2111,7 +2178,7 @@ DomotigaPlatform.prototype.setLightBrightness = function (thisDevice, value, cal
 	self.log("%s: setting light brightness to %s", thisDevice.name, value);
 	self.domotigaSetValue(thisDevice, "brightness", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.brightness to %s", thisDevice.name, value);
+			self.log.warn("%s: Error while setting light.brightness to %s", thisDevice.name, value);
 			callback();
 		} else {
 			callback(null,value);
@@ -2125,7 +2192,7 @@ DomotigaPlatform.prototype.readLightBrightness = function (thisDevice, callback)
 	self.log("%s: getting light.brightness", thisDevice.name);
 	self.domotigaGetValue(thisDevice, "brightness", function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.brightness", thisDevice.name);
+			self.log.warn("%s: Error while getting light.brightness", thisDevice.name);
 			callback();
 		} else {
 			callback(null,value);
@@ -2139,7 +2206,7 @@ DomotigaPlatform.prototype.getLightBrightness = function (thisDevice, callback) 
 		self.log('%s: cached light.brightness is: %s', thisDevice.name, thisDevice.cacheLightBrightness);
 		callback(null, thisDevice.cacheLightBrightness);
 	} else {
-		this.readLightState(thisDevice, function (error, value) {
+		this.readLightBrightness(thisDevice, function (error, value) {
 			thisDevice.cacheLightBrightness = value;
 			callback(error, thisDevice.cacheLightBrightness);
 		});
@@ -2153,7 +2220,7 @@ DomotigaPlatform.prototype.setLightHue = function (thisDevice, value, callback) 
 	self.log("%s: setting light.hue to %s", thisDevice.name, value);
 	self.domotigaSetValue(thisDevice, "hue", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.hue to %s", thisDevice.name, value);
+			self.log.warn("%s: Error while setting light.hue to %s", thisDevice.name, value);
 			callback();
 		} else {
 			callback(null,value);
@@ -2167,7 +2234,7 @@ DomotigaPlatform.prototype.readLightHue = function (thisDevice, callback) {
 	self.log("%s: getting light.hue", thisDevice.name);
 	self.domotigaGetValue(thisDevice,"hue",function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.hue", thisDevice.name);
+			self.log.warn("%s: Error while getting light.hue", thisDevice.name);
 			callback();
 		} else {
 			callback(null,value);
@@ -2181,7 +2248,7 @@ DomotigaPlatform.prototype.getLightHue = function (thisDevice, callback) {
 		self.log('%s: cached light.hue is: %s', thisDevice.name, thisDevice.cacheLightHue);
 		callback(null, thisDevice.cacheLightHue);
 	} else {
-		this.readLightState(thisDevice, function (error, value) {
+		this.readLightHue(thisDevice, function (error, value) {
 			thisDevice.cacheLightHue = value;
 			callback(error, thisDevice.cacheLightHue);
 		});
@@ -2195,7 +2262,7 @@ DomotigaPlatform.prototype.setLightSaturation = function (thisDevice, value, cal
 	self.log("%s: setting light.saturation to %s", thisDevice.name, value);
 	self.domotigaSetValue(thisDevice,"saturation", value, function (error,value){
 		if ( error) {
-			self.warn("%s: Error while setting light.saturation to %s", thisDevice.name, value);
+			self.log.warn("%s: Error while setting light.saturation to %s", thisDevice.name, value);
 			callback();
 		} else {
 			callback(null,value);
@@ -2209,7 +2276,7 @@ DomotigaPlatform.prototype.readLightSaturation = function (thisDevice, callback)
 	self.log("%s: getting light.saturation", thisDevice.name);
 	self.domotigaGetValue(thisDevice,"saturation",function (error,value){
 		if ( error) {
-			self.warn("%s: Error while getting light.saturation", thisDevice.name);
+			self.log.warn("%s: Error while getting light.saturation", thisDevice.name);
 			callback();
 		} else {
 			callback(null,value);
@@ -2223,13 +2290,12 @@ DomotigaPlatform.prototype.getLightSaturation = function (thisDevice, callback) 
 		self.log('%s: cached light.saturation is: %s', thisDevice.name, thisDevice.cacheLightSaturation);
 		callback(null, thisDevice.cacheLightSaturation);
 	} else {
-		this.readLightState(thisDevice, function (error, value) {
+		this.readLightSaturation(thisDevice, function (error, value) {
 			thisDevice.cacheLightSaturation = value;
 			callback(error, thisDevice.cacheLightSaturation);
 		});
 	}
 }
-
 
 // -----------------------------------------------------------------------------
 // CORE GETTER/SETTER
@@ -2242,16 +2308,16 @@ DomotigaPlatform.prototype.getValueEndpoint = function (thisDevice, deviceValueN
 	var request = {
 		jsonrpc: "2.0",
 		method: "device.get",
+		id: 1,
 		params: {
 			"device_id": thisDevice.device,
-			"valuenum": deviceValueNo,
-			"property": deviceValueNo
-		},
-		id: 1
+			"valuenum": deviceValueNo
+		}
 	};
 
 	JSONRequest(thisDevice.endpoint, request, function (err, data) {
-		//self.log(JSON.stringify(data));
+		//self.log(" ==> ", JSON.stringify(request));
+		//self.log(" <==", JSON.stringify(data));
 
 		// check response in detail to provide more debugging information
 		if ( err || data.error ) {
@@ -2291,16 +2357,15 @@ DomotigaPlatform.prototype.setValueEndpoint = function (thisDevice, deviceValueN
 	var request ={
 		jsonrpc: "2.0",
 		method: "device.set",
+		id: 1,
 		params: {
 			"device_id": thisDevice.name,
 			"valuenum": deviceValueNo,
 			"value": value
-		},
-		id: 1
+		}
 	};
 
 	JSONRequest(thisDevice.endpoint, request, function (err, data) {
-		//this.log("data:", data);
 		if (err) {
 			this.log.error("Sorry err: ", err);
 		}
@@ -2308,15 +2373,16 @@ DomotigaPlatform.prototype.setValueEndpoint = function (thisDevice, deviceValueN
 	});
 }
 
+// ------------------------------------------------------------------------------------------------
 // BACKEND: command execution
 
 DomotigaPlatform.prototype.executeCommand = function (command, callback) {
 	var self = this;
-	//self.log.info("=> %s",command);
 
 	// make sure, all placeholders are removed
-	command  = command.replace(/\$\w+/g,""); // clear all other placeholders
+	command  = command.replace(/\$\w+/g,"");
 
+	//self.log.info("=> %s",command);
 	exec(command, function (error, stdout, stderr) {
 		if ( error ) {
 			self.log.error("	==> %s ", error);
@@ -2362,55 +2428,69 @@ DomotigaPlatform.prototype.setValueCommand = function (thisDevice, deviceValueNo
 	});
 }
 
-
+// ------------------------------------------------------------------------------------------------
 // BACKEND: file TODO: not implemented
+
 DomotigaPlatform.prototype.getValueFile = function (thisDevice, deviceValueNo, callback) {}
+
 DomotigaPlatform.prototype.setValueFile = function (thisDevice, deviceValueNo, value, callback) {}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 
+DomotigaPlatform.prototype.parseResponseData = function(thisDevice, data, error, value) {
+	var self = this;
+	// for
+
+}
+
 // Set value at domotiga database
 DomotigaPlatform.prototype.domotigaSetValue = function (thisDevice, deviceValueNo, value, callback) {
 	var self = this;
 
-	// convert value to something a numeric
+	// convert value to numeric
 	// TODO is that ok for domotiga backend?
+
 	switch(typeof value){
 		case "string":
-			value = value.toLowerCase() == "off" ? 0 : 1;
+			value = (value.toLowerCase() == "off") ? 0 : 1;
 			break;
 		case "boolean":
-			value = value === false ? 0 : 1;
+			value = (value === false) ? 0 : 1;
 			break;
 		case "number":
-			// nothing to do
+			// nothing to do - can be used as is
 			break;
 		default:
-		self.log.warn("%s: Don't know how to convert value of type '%s' (trying to use it as is)",thisDevice.name, typeof value);
+			self.log.warn("%s: Don't know how to convert value of type '%s' (trying to use it as is)",thisDevice.name, typeof value);
 	}
 
 	// common callback for backend functions
 	var resultHandler = function(error) {
 		if ( error ) {
-			self.log("%s: Error while setting value",thisDevice.name);
+			self.log.warn("%s: error getting value (%s)", thisDevice.name, error);
 			callback(error);
 		} else {
 			callback();
 		}
 	};
 
-	// use this.backend
-	if ( thisDevice.endpoint ) {
-		this.setValueEndpoint(thisDevice, deviceValueNo, value, resultHandler);
-	} else if (thisDevice.command) {
-		this.setValueCommand(thisDevice, deviceValueNo, value, resultHandler);
-	} else if (thisDevice.file) {
-		this.setValueFile(thisDevice, deviceValueNo, value, resultHandler);
-		callback();
-	} else {
-		self.log.warn("getValue: Unsupported backend (%s)");
-		callback();
+	switch (thisDevice.backend) {
+		case "endpoint":
+			self.setValueEndpoint(thisDevice, deviceValueNo, value, resultHandler);
+			break;
+
+		case "command":
+			self.setValueCommand(thisDevice, deviceValueNo, value, resultHandler);
+			break;
+
+		case "file":
+			self.setValueFile(thisDevice, deviceValueNo, value, resultHandler);
+			break;
+
+		default:
+			self.log.warn("%s: setValue: Unsupported backend: %s ", thisDevice.name, thisDevice.backend);
+			callback();
 	}
 }
 
@@ -2418,15 +2498,20 @@ DomotigaPlatform.prototype.domotigaSetValue = function (thisDevice, deviceValueN
 DomotigaPlatform.prototype.domotigaGetValue = function (thisDevice, deviceValueNo, callback) {
     var self = this;
 
-	var resultHandler = function (error,data) {
+	// parse return value
+	var resultHandler = function (error, data) {
 		if ( error ) {
+			self.log.warn("%s: error getting value (%s)", thisDevice.name, error);
 			callback(error);
 		} else {
-			// validate return value
-			if ( Number.isNaN(data) === true ) {		// try to convert
-				if ( typeof data =="string" && (data.toLowerCase() == "on" || data.toLowerCase() == "true")) {
+			// --> thisDevice.format = "json" -> handle as JSONRPC
+
+			// --> plain result: validate return value
+			if ( Number.isNaN(data) === true ) {
+				// try to convert
+				if ( typeof data == "string" && (data.toLowerCase() == "on" || data.toLowerCase() == "true")) {
 					callback(null,1);
-				} else if( typeof data =="string" && (data.toLowerCase() == "off" || data.toLowerCase() == "false")) {
+				} else if( typeof data == "string" && (data.toLowerCase() == "off" || data.toLowerCase() == "false")) {
 					callback(null,1);
 				} else {
 					self.log.warn("Result discarded (%s => %s)",data, typeof data);
@@ -2438,20 +2523,22 @@ DomotigaPlatform.prototype.domotigaGetValue = function (thisDevice, deviceValueN
 		}
 	};
 
-	// this.backend
-	if ( thisDevice.endpoint ) {
-		this.getValueEndpoint(thisDevice, deviceValueNo, resultHandler);
-	}
-	else if (thisDevice.command) {
-		this.getValueCommand(thisDevice, deviceValueNo, resultHandler);
-	}
-	else if (thisDevice.file) {
-		this.getValueFile(thisDevice, deviceValueNo, resultHandler);
-		callback();
-	}
-	else {
-		self.log.warn("getValue: Unsupported backend");
-		callback();
+	switch ( thisDevice.backend ) {
+		case "endpoint":
+			self.getValueEndpoint(thisDevice, deviceValueNo, resultHandler);
+			break;
+
+		case "command":
+			self.getValueCommand(thisDevice, deviceValueNo, resultHandler);
+			break;
+
+		case "file":
+			self.getValueFile(thisDevice, deviceValueNo, resultHandler);
+			break;
+
+		default:
+			self.log.warn("%s: getValue: Unsupported backend: %s",thisDevice.name, thisDevice.backend);
+			callback();
 	}
 }
 
@@ -2460,7 +2547,27 @@ DomotigaPlatform.prototype.domotigaGetValue = function (thisDevice, deviceValueN
 
 // Method to handle identify request
 DomotigaPlatform.prototype.identify = function (thisDevice, paired, callback) {
-    this.log("%s: identify requested", thisDevice.name);
+	var self = this;
+	self.log("%s: identify requested", thisDevice.name);
+
+	if ( thisDevice.identityCall ) {
+		if ( self.backend == "endpoint" ) {
+			var request = {
+				jsonrpc: "2.0",
+				method: "device.identity",
+				id: 1,
+				params: {
+					"device_id": thisDevice.device,
+				}
+			};
+			JSONRequest(thisDevice.identityCall, request, function (err, data) {});
+
+		} else if ( this.backend == "command" ) {
+			self.executeCommand(thisDevice.identityCall, function(err,data){})
+		} else {
+			this.log("%s: identify requested not supported", thisDevice.name);
+		}
+	}
     callback();
 }
 
