@@ -1,7 +1,7 @@
 {
-  "name": "homebridge-domotiga",
-  "version": "0.0.20",
-  "description": "domotiga plugin for homebridge: https://github.com/nfarina/homebridge",
+  "name": "homebridge-nbo",
+  "version": "0.1.0",
+  "description": "plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
   "keywords": [
     "homebridge-plugin"
@@ -11,11 +11,12 @@
     "homebridge": ">=0.4.16"
   },
   "author": {
+	"name":"nordblick2",
     "name": "Sam Fox"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/Samfox2/homebridge-domotiga.git"
+    "url": "git://github.com/nordblick2/homebridge-domotiga.git"
   },
   "dependencies": {
     "jsonrequest": "^4.1.5",
