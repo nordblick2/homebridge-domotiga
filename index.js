@@ -969,7 +969,7 @@ DomotigaPlatform.prototype.setService = function (accessory) {
             break;
 
         case "MotionSensor":
-            primaryservice = accessory.getService(Service.MotionkSensor);
+            primaryservice = accessory.getService(Service.MotionSensor);
             primaryservice.getCharacteristic(Characteristic.MotionDetected)
                 .on('get', this.getMotionSensorState.bind(this, accessory.context));
             break;
@@ -1824,7 +1824,7 @@ DomotigaPlatform.prototype.readMotionSensorState = function (thisDevice, callbac
             self.log.error('%s: readMotionSensorState failed: %s', thisDevice.name, error.message);
             callback(error);
         } else {
-            var value = (Number(result) == 0) ? 1 : 0;
+            var value = (Number(result) == 0) ? 0 : 1;
 
             self.log('%s: motion sensor state: %s', thisDevice.name, value);
             callback(null, value);
@@ -2359,6 +2359,7 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 	try {
 		data = JSON.parse(data);
 	} catch (e) {
+		//
 	}
 
 	switch(typeof data) {
@@ -2377,23 +2378,28 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 			break;
 
 		case "object": // json
-			// if ( thisDevice.name == "Farblicht") {
-			self.log.warn(" ===> ", JSON.stringify(data));
-			// }
-			if ( ! data.jsonrpc ) {
-				//self.log.warn("%s: Missing jsonrpc-element.",thisDevice.name); // just a warning
+			if ( self.debug ) {
+				self.log.warn(" ===> ", JSON.stringify(data));
+
+				if ( ! data.jsonrpc ) {
+					self.log.warn("%s: Missing jsonrpc-element.",thisDevice.name); // just a warning
+				}
 			}
 			if ( ! data.result ) {
 				if ( data.error ) {
-					resultError= new Error(thisDevice.name + ": Invalid response ("+ data.error.message + ")");
+					if ( data.error.message ) {
+						resultError= new Error(thisDevice.name + ": Invalid response ("+ data.error.message + ")");
+					}else {
+						resultError= new Error(thisDevice.name + ": Invalid response (unknown error/no error message specified)");
+					}
 				} else {
-					resultError= new Error(thisDevice.name + ": Invalid response (Missing result)");
+					resultError= new Error(thisDevice.name + ": Invalid response (Missing data.result)");
 				}
 				break;
 			}
 
 			if ( ! data.result.values ) {
-				resultError = new Error(thisDevice.name + ": Invalid response (Missing result.values)");
+				resultError = new Error(thisDevice.name + ": Invalid response (Missing data.result.values)");
 				break;
 			}
 
@@ -2458,7 +2464,7 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 			var ageInSeconds = parseInt((nowDate-resultDate) / 1000);
 			if ( ageInSeconds > thisDevice.maxAgeInSeconds ) {
 				self.log.warn("%s: Value date out of exaptable time range: %s sec (%s sec allowed)",thisDevice.name,ageInSeconds,thisDevice.maxAgeInSeconds);
-				resultError = new Error(thisDevice.name + ": Sensor data too old")
+				resultError = new Error("Sensor data too old -> discarded")
 			} else{
 				//self.log.warn("%s: Value date within time range: %s sec (%s sec allowed)",thisDevice.name,ageInSeconds,thisDevice.maxAgeInSeconds);
 			}
@@ -2466,8 +2472,6 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 	}
 	callback(resultError,resultValue);
 }
-
-// BACKEND: tcp endpoint
 
 DomotigaPlatform.prototype.getValueEndpoint = function (thisDevice, deviceValueNo, callback) {
 	var self = this;
@@ -2483,6 +2487,10 @@ DomotigaPlatform.prototype.getValueEndpoint = function (thisDevice, deviceValueN
 
 	JSONRequest(thisDevice.endpoint, request, function (err, data) {
 		if ( err ) {
+			if ( self.debug ) {
+				self.log("%s: %s", thisDevice.name, thisDevice.endpoint);
+				if (data) self.log(data);
+			}
 			callback(err);
 		} else {
 			self.parseResponseData(thisDevice, thisDevice.endpoint, deviceValueNo, data, callback);
@@ -2517,6 +2525,7 @@ DomotigaPlatform.prototype.setValueEndpoint = function (thisDevice, deviceValueN
 
 // ------------------------------------------------------------------------------------------------
 // BACKEND: command execution
+// ------------------------------------------------------------------------------------------------
 
 DomotigaPlatform.prototype.executeCommand = function (command, callback) {
 	var self = this;
@@ -2642,7 +2651,7 @@ DomotigaPlatform.prototype.domotigaGetValue = function (thisDevice, deviceValueN
 	// parse return value
 	var resultHandler = function (error, data) {
 		if ( error ) {
-			self.log.warn("%s: error getting value (%s)", thisDevice.name, error);
+			self.log.warn("%s: Error getting value (%s)", thisDevice.name, error);
 			callback(error);
 		} else {
 			// --> plain result: validate return value
