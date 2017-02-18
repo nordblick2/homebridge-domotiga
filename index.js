@@ -314,7 +314,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         accessory.context.valueTotalPowerConsumption = data.valueTotalPowerConsumption;
 
 	    accessory.context.polling = data.polling;
-        accessory.context.pollInMs = data.pollInMs || data.pollingInterval*1000 || 5000;
+        accessory.context.pollingInterval = data.pollInMs/1000 || data.pollingInterval || 5;
 
 		// backend configuration: use default from global config
 		accessory.context.backend = this.backend;
@@ -535,7 +535,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 
     // Confirm variable type
     data.polling = data.polling === true;
-    data.pollInMs = parseInt(data.pollInMs, 10) || 1;
+    //data.pollInMs = parseInt(data.pollInMs, 10) || 1; //
 
     // Store and initialize variables into context
     accessory.context.cacheCurrentTemperature = 0;
@@ -566,7 +566,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 
     // Configure state polling
     if (data.polling) {
-		this.log("Enable polling for '%s' (with %d second interval)", data.name, data.pollInMs * 1000)
+		this.log("Enable polling for '%s' (with %d second interval)", data.name, data.pollingInterval)
 		this.doPolling(data.name);
 	}
 }
@@ -889,8 +889,8 @@ DomotigaPlatform.prototype.doPolling = function (name) {
         });
     }
 
-    // Setup for next polling
-    this.polling[name] = setTimeout(this.doPolling.bind(this), thisDevice.pollInMs, name);
+    // Setup for next polling cycle
+    this.polling[name] = setTimeout(this.doPolling.bind(this), thisDevice.pollingInterval*1000, name);
 
 }
 
