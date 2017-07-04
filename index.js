@@ -20,7 +20,7 @@ module.exports = function (homebridge) {
     UUIDGen = homebridge.hap.uuid;
 
     ////////////////////////////// Custom characteristics //////////////////////////////
-    EvePowerConsumption = function () {
+    Characteristic.EvePowerConsumption = function () {
         Characteristic.call(this, 'Consumption', 'E863F10D-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
             format: Characteristic.Formats.UINT16,
@@ -32,9 +32,10 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(EvePowerConsumption, Characteristic);
+    inherits(Characteristic.EvePowerConsumption, Characteristic);
+	Characteristic.EvePowerConsumption.UUID = 'E863F10D-079E-48FF-8F27-9C2605A29F52';
 
-    EveTotalPowerConsumption = function () {
+    Characteristic.EveTotalPowerConsumption = function () {
         Characteristic.call(this, 'Total Consumption', 'E863F10C-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
             format: Characteristic.Formats.FLOAT, // Deviation from Eve Energy observed type
@@ -46,9 +47,10 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(EveTotalPowerConsumption, Characteristic);
+	inherits(Characteristic.EveTotalPowerConsumption, Characteristic);
+	Characteristic.EveTotalPowerConsumption.UUID = 'E863F10C-079E-48FF-8F27-9C2605A29F52';
 
-    EveRoomAirQuality = function () {
+    Characteristic.EveRoomAirQuality = function () {
         Characteristic.call(this, 'Eve Air Quality', 'E863F10B-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
             format: Characteristic.Formats.UINT16,
@@ -62,7 +64,7 @@ module.exports = function (homebridge) {
     };
     inherits(EveRoomAirQuality, Characteristic);
 
-    EveBatteryLevel = function () {
+    Characteristic.EveBatteryLevel = function () {
         Characteristic.call(this, 'Eve Battery Level', 'E863F11B-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
             format: Characteristic.Formats.UINT16,
@@ -74,9 +76,10 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(EveBatteryLevel, Characteristic);
+    inherits(Characteristic.EveBatteryLevel, Characteristic);
+	Characteristic.EveBatteryLevel.UUID = 'E863F11B-079E-48FF-8F27-9C2605A29F52';
 
-    EveAirPressure = function () {
+    Characteristic.EveAirPressure = function () {
         //todo: only rough guess of extreme values -> use correct min/max if known
         Characteristic.call(this, 'Eve AirPressure', 'E863F10F-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
@@ -89,41 +92,45 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(EveAirPressure, Characteristic);
+	inherits(Characteristic.EveAirPressure, Characteristic);
+    Characteristic.EveAirPressure.UUID = 'E863F10F-079E-48FF-8F27-9C2605A29F52';
 
     ////////////////////////////// Custom services //////////////////////////////
-    PowerMeterService = function (displayName, subtype) {
+    Service.PowerMeterService = function (displayName, subtype) {
         Service.call(this, displayName, '00000001-0000-1777-8000-775D67EC4377', subtype);
         // Required Characteristics
-        this.addCharacteristic(EvePowerConsumption);
+        this.addCharacteristic(Characteristics.EvePowerConsumption);
         // Optional Characteristics
-        this.addOptionalCharacteristic(EveTotalPowerConsumption);
+        this.addOptionalCharacteristic(Characteristics.EveTotalPowerConsumption);
     };
-    inherits(PowerMeterService, Service);
+	inherits(Service.PowerMeterService, Service);
+	Service.PowerMeterService.UUID = '00000001-0000-1777-8000-775D67EC4377';
 
     //Eve service (custom UUID)
-    EveRoomService = function (displayName, subtype) {
+    Service.EveRoomService = function (displayName, subtype) {
         Service.call(this, displayName, 'E863F002-079E-48FF-8F27-9C2605A29F52', subtype);
         // Required Characteristics
-        this.addCharacteristic(EveRoomAirQuality);
+		this.addCharacteristic(Characteristic.EveRoomAirQuality);
         // Optional Characteristics
         this.addOptionalCharacteristic(Characteristic.CurrentRelativeHumidity);
 		this.addOptionalCharacteristic(Characteristic.CurrentTemperature);
     };
-    inherits(EveRoomService, Service);
+	inherits(Service.EveRoomService, Service);
+	Service.EveRoomService.UUID = 'E863F002-079E-48FF-8F27-9C2605A29F52';
 
     /////////////////////////////////////////////////////////////////////////////////////////////
     //Eve service (custom UUID)
-    EveWeatherService = function (displayName, subtype) {
+    Service.EveWeatherService = function (displayName, subtype) {
         Service.call(this, displayName, 'E863F001-079E-48FF-8F27-9C2605A29F52', subtype);
         // Required Characteristics
-        this.addCharacteristic(EveAirPressure);
+        this.addCharacteristic(Characteristics.EveAirPressure);
         // Optional Characteristics
         this.addOptionalCharacteristic(Characteristic.CurrentRelativeHumidity);
 		this.addOptionalCharacteristic(Characteristic.CurrentTemperature);
-        this.addOptionalCharacteristic(EveBatteryLevel);
+		this.addOptionalCharacteristic(Characteristic.EveBatteryLevel);
     };
-    inherits(EveWeatherService, Service);
+ 	inherits(Service.EveWeatherService, Service);
+	Service.EveWeatherService.UUID = 'E863F001-079E-48FF-8F27-9C2605A29F52';
 
     // Consider platform plugin as dynamic platform plugin
     homebridge.registerPlatform("homebridge-domotiga", "DomotiGa", DomotigaPlatform, true);
@@ -460,7 +467,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
                 break;
 
             case "FakeEveAirQualitySensor":
-                primaryservice = new EveRoomService("Eve Room");
+                primaryservice = new Service.EveRoomService("Eve Room");
                 if (!accessory.context.valueAirQuality) {
                     this.log.warn('%s: missing definition of valueAirQuality in config.json!', accessory.context.name);
                     //return;
@@ -468,7 +475,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
                 break;
 
             case "FakeEveWeatherSensor":
-                primaryservice = new EveWeatherService("Eve Weather");
+                primaryservice = new Service.EveWeatherService("Eve Weather");
 				this.log(typeof primaryservice);
                 if (!accessory.context.valueAirPressure) {
                     this.log.warn('%s: missing definition of valueAirPressure in config.json!', accessory.context.name);
@@ -477,7 +484,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
                 break;
 
             case "Powermeter":
-                primaryservice = new PowerMeterService(accessory.context.name);
+                primaryservice = new Service.PowerMeterService(accessory.context.name);
                 if (!accessory.context.valuePowerConsumption) {
                     this.log.warn('%s: missing definition of valuePowerConsumption in config.json!', accessory.context.name);
                     //return;
@@ -502,7 +509,7 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         }
         // Eve characteristic (custom UUID)
         if (accessory.context.valueAirPressure && (accessory.context.service != "FakeEveWeatherSensor")) {
-            primaryservice.addOptionalCharacteristic(EveAirPressure);
+            primaryservice.addOptionalCharacteristic(Characteristic.EveAirPressure);
         }
         // Eve characteristic (custom UUID)
         if (accessory.context.valueAirQuality && (accessory.context.service != "AirQualitySensor") && (accessory.context.service != "FakeEveAirQualitySensor")) {
@@ -510,11 +517,11 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
         }
         // Eve characteristic (custom UUID)
         if (accessory.context.valuePowerConsumption && (accessory.context.service != "Powermeter")) {
-            primaryservice.addOptionalCharacteristic(EvePowerConsumption);
+            primaryservice.addOptionalCharacteristic(Characteristic.EvePowerConsumption);
         }
         // Eve characteristic (custom UUID)
         if (accessory.context.valueTotalPowerConsumption) {
-            primaryservice.addOptionalCharacteristic(EveTotalPowerConsumption);
+            primaryservice.addOptionalCharacteristic(Characteristic.EveTotalPowerConsumption);
         }
 
         // Setup HomeKit switch service
@@ -772,34 +779,34 @@ DomotigaPlatform.prototype.doPolling = function (name) {
             break;
 
         case "FakeEveAirQualitySensor":
-            primaryservice = accessory.getService(EveRoomService);
+            primaryservice = accessory.getService(Service.EveRoomService);
             this.readCurrentEveAirQuality(thisDevice, function (error, value) {
                 // Update value if there's no error
                 if (!error && value !== thisDevice.cacheCurrentAirQuality) {
                     thisDevice.cacheCurrentAirQuality = value;
-                    primaryservice.getCharacteristic(EveRoomAirQuality).getValue();
+                    primaryservice.getCharacteristic(Characteristic.EveRoomAirQuality).getValue();
                 }
             });
             break;
 
         case "FakeEveWeatherSensor":
-            primaryservice = accessory.getService(EveWeatherService);
+            primaryservice = accessory.getService(Service.EveWeatherService);
             this.readCurrentAirPressure(thisDevice, function (error, value) {
                 // Update value if there's no error
                 if (!error && value !== thisDevice.cacheCurrentAirPressure) {
                     thisDevice.cacheCurrentAirPressure = value;
-                    primaryservice.getCharacteristic(EveAirPressure).getValue();
+                    primaryservice.getCharacteristic(Characteristic.EveAirPressure).getValue();
                 }
             });
             break;
 
         case "Powermeter":
-            primaryservice = accessory.getService(PowerMeterService);
+            primaryservice = accessory.getService(Service.PowerMeterService);
             this.readEvePowerConsumption(thisDevice, function (error, value) {
                 // Update value if there's no error
                 if (!error && value !== thisDevice.cachePowerConsumption) {
                     thisDevice.cachePowerConsumption = value;
-                    primaryservice.getCharacteristic(EvePowerConsumption).getValue();
+                    primaryservice.getCharacteristic(Characteristic.EvePowerConsumption).getValue();
                 }
             });
             break;
@@ -853,7 +860,7 @@ DomotigaPlatform.prototype.doPolling = function (name) {
             // Update value if there's no error
             if (!error && value !== thisDevice.cacheCurrentAirPressure) {
                 thisDevice.cacheCurrentAirPressure = value;
-                primaryservice.getCharacteristic(EveAirPressure).getValue();
+                primaryservice.getCharacteristic(Characteristic.EveAirPressure).getValue();
             }
         });
     }
@@ -874,7 +881,7 @@ DomotigaPlatform.prototype.doPolling = function (name) {
             // Update value if there's no error
             if (!error && value !== thisDevice.cachePowerConsumption) {
                 thisDevice.cachePowerConsumption = value;
-                primaryservice.getCharacteristic(EvePowerConsumption).getValue();
+                primaryservice.getCharacteristic(Characteristic.EvePowerConsumption).getValue();
             }
         });
     }
@@ -884,7 +891,7 @@ DomotigaPlatform.prototype.doPolling = function (name) {
             // Update value if there's no error
             if (!error && value !== thisDevice.cacheTotalPowerConsumption) {
                 thisDevice.cacheTotalPowerConsumption = value;
-                primaryservice.getCharacteristic(EveTotalPowerConsumption).getValue();
+                primaryservice.getCharacteristic(Characteristic.EveTotalPowerConsumption).getValue();
             }
         });
     }
@@ -969,7 +976,7 @@ DomotigaPlatform.prototype.setService = function (accessory) {
             break;
 
         case "MotionSensor":
-            primaryservice = accessory.getService(Service.MotionSensor);
+            primaryservice = accessory.getService(Service.MotionkSensor); // check
             primaryservice.getCharacteristic(Characteristic.MotionDetected)
                 .on('get', this.getMotionSensorState.bind(this, accessory.context));
             break;
@@ -1030,22 +1037,21 @@ DomotigaPlatform.prototype.setService = function (accessory) {
             break;
 
         case "FakeEveAirQualitySensor":
-			primaryservice = new EveRoomService(accessory.context.name);
-            //primaryservice = accessory.getService(EveRoomService);
-            primaryservice.getCharacteristic(EveRoomAirQuality)
-                .on('get', this.getCurrentEveAirQuality.bind(this, accessory.context));
+			primaryservice = accessory.getService(Service.EveRoomService);
+			primaryservice.getCharacteristic(Characteristic.EveRoomAirQuality)
+				.on('get', this.getCurrentEveAirQuality.bind(this, accessory.context));
             break;
 
         case "FakeEveWeatherSensor":
-			primaryservice = accessory.getService(EveWeatherService);
-			//primaryservice = new EveWeatherService(accessory.context.name);
-            primaryservice.getCharacteristic(EveAirPressure)
+			primaryservice = accessory.getService(Service.EveWeatherService);
+			primaryservice = new EveWeatherService(accessory.context.name);
+            primaryservice.getCharacteristic(Characteristic.EveAirPressure)
                .on('get', this.getCurrentAirPressure.bind(this, accessory.context));
             break;
 
         case "Powermeter":
-            primaryservice = accessory.getService(PowerMeterService);
-            primaryservice.getCharacteristic(EvePowerConsumption)
+            primaryservice = accessory.getService(Service.PowerMeterService);
+            primaryservice.getCharacteristic(Characteristic.EvePowerConsumption)
                 .on('get', this.getEvePowerConsumption.bind(this, accessory.context));
             break;
 
@@ -1213,18 +1219,18 @@ DomotigaPlatform.prototype.getInitState = function (accessory) {
                 break;
 
             case "FakeEveAirQualitySensor":
-                primaryservice = accessory.getService(EveRoomService);
-                primaryservice.getCharacteristic(EveRoomAirQuality).getValue();
+                primaryservice = accessory.getService(Service.EveRoomService);
+                primaryservice.getCharacteristic(Characteristic.EveRoomAirQuality).getValue();
                 break;
 
             case "FakeEveWeatherSensor":
-                primaryservice = accessory.getService(EveWeatherService);
-                primaryservice.getCharacteristic(EveAirPressure).getValue();
+                primaryservice = accessory.getService(Service.EveWeatherService);
+                primaryservice.getCharacteristic(Characteristic.EveAirPressure).getValue();
                 break;
 
             case "Powermeter":
-                primaryservice = accessory.getService(PowerMeterService);
-                primaryservice.getCharacteristic(EvePowerConsumption).getValue();
+                primaryservice = accessory.getService(Service.PowerMeterService);
+                primaryservice.getCharacteristic(Characteristic.if (accessory.context.valueAirPressureEvePowerConsumption).getValue();
                 break;
 
             default:
@@ -1249,7 +1255,7 @@ DomotigaPlatform.prototype.getInitState = function (accessory) {
             // Eve characteristic (custom UUID)
             if (accessory.context.valueAirPressure &&
                 (accessory.context.service != "FakeEveWeatherSensor")) {
-                primaryservice.getCharacteristic(EveAirPressure).getValue();
+                primaryservice.getCharacteristic(Characteristic.EveAirPressure).getValue();
             }
             // Eve characteristic (custom UUID)
             if (accessory.context.valueAirQuality &&
@@ -1258,11 +1264,11 @@ DomotigaPlatform.prototype.getInitState = function (accessory) {
             }
             // Eve characteristic (custom UUID)
             if (accessory.context.valuePowerConsumption && (accessory.context.service != "Powermeter")) {
-                primaryservice.getCharacteristic(EvePowerConsumption).getValue();
+                primaryservice.getCharacteristic(Characteristic.EvePowerConsumption).getValue();
             }
             // Eve characteristic (custom UUID)
             if (accessory.context.valueTotalPowerConsumption) {
-                primaryservice.getCharacteristic(EveTotalPowerConsumption).getValue();
+                primaryservice.getCharacteristic(Characteristic.EveTotalPowerConsumption).getValue();
             }
         }
     }
@@ -1824,7 +1830,7 @@ DomotigaPlatform.prototype.readMotionSensorState = function (thisDevice, callbac
             self.log.error('%s: readMotionSensorState failed: %s', thisDevice.name, error.message);
             callback(error);
         } else {
-            var value = (Number(result) == 0) ? 0 : 1;
+            var value = (Number(result) == 0) ? 1 : 0; // really?
 
             self.log('%s: motion sensor state: %s', thisDevice.name, value);
             callback(null, value);
@@ -1989,7 +1995,7 @@ DomotigaPlatform.prototype.setDoorPosition = function (thisDevice, targetPositio
         callbackWasCalled = true;
         if (!err) {
             self.log("%s: successfully set door position to %s", thisDevice.name, targetPosition);
-            callback(null);
+            callback(null, targetPosition);
         } else {
             self.log.error("%s: error setting door position to %s", thisDevice.name, targetPosition);
             callback(err);
@@ -2023,8 +2029,9 @@ DomotigaPlatform.prototype.readWindowPosition = function (thisDevice, callback) 
     });
 }
 
-DomotigaPlatform.prototype.getWindowPosition = function (thisDevice, callback) {
+DomotigaPlatform.prototype.getWindowPosition = function (accessory, callback) {
     var self = this;
+	var thisDevice = accessory.context;
 
     if (thisDevice.polling) {
         // Get value directly from cache if polling is enabled
@@ -2040,8 +2047,10 @@ DomotigaPlatform.prototype.getWindowPosition = function (thisDevice, callback) {
     }
 }
 
-DomotigaPlatform.prototype.setWindowPosition = function (thisDevice, targetPosition, callback) {
+DomotigaPlatform.prototype.setWindowPosition = function (accessory, targetPosition, callback) {
     var self = this;
+	var thisDevice = accessory.context;
+
     self.log("%s: setting window position to %s", thisDevice.name, targetPosition);
 
     // At this time we do not use percentage values: 1 = open, 0 = closed
@@ -2051,16 +2060,16 @@ DomotigaPlatform.prototype.setWindowPosition = function (thisDevice, targetPosit
         windowPosition = "0";
     }
     else {
-        windowPosition = "1";
+        windowPosition = "100";
     }
 
     // Update cache
     thisDevice.cacheWindowPosition = windowPosition;
 
     // Update position state
-    var accessory = this.accessories[thisDevice.name];
-    if (accessory)
-        accessory.getService(Service.Window).setCharacteristic(Characteristic.PositionState, Characteristic.PositionState.STOPPED);
+	accessory.getService(Service.Window).setCharacteristic(Characteristic.CurrentPosition, windowPosition);
+	accessory.getService(Service.Window).setCharacteristic(Characteristic.PositionState, Characteristic.PositionState.STOPPED);
+
 
     var callbackWasCalled = false;
     this.domotigaSetValue(thisDevice, thisDevice.valueWindow, windowPosition, function (err) {
@@ -2070,7 +2079,7 @@ DomotigaPlatform.prototype.setWindowPosition = function (thisDevice, targetPosit
         callbackWasCalled = true;
         if (!err) {
             self.log("%s: successfully set window position to %s", thisDevice.name, targetPosition);
-            callback(null);
+            callback(null, windowPosition);
         } else {
             self.log.error("%s: error setting window position to %s", thisDevice.name, targetPosition);
             callback(err);
@@ -2123,6 +2132,7 @@ DomotigaPlatform.prototype.getWindowCoveringPosition = function (thisDevice, cal
 
 DomotigaPlatform.prototype.setWindowCoveringPosition = function (thisDevice, targetPosition, callback) {
     var self = this;
+
     self.log("%s: setting window covering position to %s", thisDevice.name, targetPosition);
 
     // At this time we do not use percentage values: 1 = open, 0 = closed
@@ -2151,7 +2161,7 @@ DomotigaPlatform.prototype.setWindowCoveringPosition = function (thisDevice, tar
         callbackWasCalled = true;
         if (!err) {
             self.log("%s: successfully set window covering position to %s", thisDevice.name, targetPosition);
-            callback(null);
+            callback(null, windowcoveringPosition);
         } else {
             self.log.error("%s: error setting window covering position to %s", thisDevice.name, targetPosition);
             callback(err);
