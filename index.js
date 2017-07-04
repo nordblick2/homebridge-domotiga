@@ -1230,8 +1230,8 @@ DomotigaPlatform.prototype.getInitState = function (accessory) {
 
             case "Powermeter":
                 primaryservice = accessory.getService(Service.PowerMeterService);
-                primaryservice.getCharacteristic(Characteristic.if (accessory.context.valueAirPressureEvePowerConsumption).getValue();
-                break;
+                primaryservice.getCharacteristic(Characteristic.EvePowerConsumption).getValue();
+				break;
 
             default:
                 this.log.error('Service %s %s unknown, skipping...', accessory.context.service, accessory.context.name);
