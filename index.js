@@ -62,7 +62,7 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(EveRoomAirQuality, Characteristic);
+    inherits(Characteristic.EveRoomAirQuality, Characteristic);
 
     Characteristic.EveBatteryLevel = function () {
         Characteristic.call(this, 'Eve Battery Level', 'E863F11B-079E-48FF-8F27-9C2605A29F52');
@@ -76,8 +76,9 @@ module.exports = function (homebridge) {
         });
         this.value = this.getDefaultValue();
     };
-    inherits(Characteristic.EveBatteryLevel, Characteristic);
-	Characteristic.EveBatteryLevel.UUID = 'E863F11B-079E-48FF-8F27-9C2605A29F52';
+	inherits(Characteristic.EveBatteryLevel, Characteristic);
+	    	Characteristic.EveBatteryLevel.UUID = 'E863F11B-079E-48FF-8F27-9C2605A29F52';
+
 
     Characteristic.EveAirPressure = function () {
         //todo: only rough guess of extreme values -> use correct min/max if known
@@ -1103,7 +1104,7 @@ DomotigaPlatform.prototype.setService = function (accessory) {
         // Eve characteristic (custom UUID)
         if (accessory.context.valueAirPressure && (accessory.context.service != "FakeEveWeatherSensor")) {
 			this.log(primaryservice);
-			primaryservice.getCharacteristic(DomotigaPlatform.EveAirPressure)
+			primaryservice.getCharacteristic(Characteristic.EveAirPressure)
                  .on('get', this.getCurrentAirPressure.bind(this, accessory.context));
         }
         // Eve characteristic (custom UUID)
