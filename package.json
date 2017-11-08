@@ -1,6 +1,6 @@
 {
   "name": "homebridge-nbo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "plugin for homebridge: https://github.com/nfarina/homebridge",
   "license": "ISC",
   "keywords": [
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "jsonrequest": "^4.1.5",
-    "util": "^0.10.3",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
+    "util": "^0.10.3"
   }
 }
