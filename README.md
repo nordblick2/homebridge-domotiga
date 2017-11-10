@@ -29,13 +29,13 @@ The latest version (work in progress) supports following (primary) services:
 - ```Door``` (get/set door position)
 - ```Window``` (get/set window position)
 - ```WindowCovering``` (get/set window covering positon)
-- ```Lightbulb``` (switch on/of lightbulbs, change color and brightness)
+- ```Lightbulb``` (switch on/of lightbulbs, change color and brightness if features are configured)
 - ```Powermeter``` (custom service with power consumption)
 
 Domotiga device value numbers (e.g. which device value represents temperature) can be assigned directly within the config.json file. For multi-sensors (e.g. combined temperature/humidity sensors) additional characteristics can be added by defining their domotiga values in config.json (see example below).
 
 # Supported Backend ###
-The plugin supports various backends for getting or setting sensor data:
+The plugin supports various backends for getting/setting sensor data:
 
 - ```URL endpoint``` URL endpoint (communication with TCP backend )
 - ```Command execution```	Communication by calling executables for getting/setting state/data
@@ -46,13 +46,27 @@ then one backend presently. If you have
 
 ## URL endpoints
 To use URL endpoints your configuration file needs a the following option in platform or accessory block:
+```
 {
 	"endpoint": "http://localhost:9000/apiv1"
 }
+```
 Requests will be send in http body by using JSONRPC 2.0 protocol, e.g:
-{"jsonrpc":"2.0","method":"device.get","id":1,"params":{"device_id":"14","valuenum":"temperature2"}}
+```
+{
+	"jsonrpc":"2.0",
+	"method":"device.get",
+	"id":1,
+	"params":
+		{
+			"device_id":"14",
+			"valuenum":"temperature2"
+		}
+}
+```
 
 Responses needs the following structure:
+```javascript
 {
 	"jsonrpc" : "2.0",
 	"id": 23,
@@ -64,7 +78,7 @@ Responses needs the following structure:
 		}
 	}
 }
-
+```
 Please be aware, that the backend need to fullfil JSONRPC specification, especially in error cases! Otherwise it will be really
 hard for you to debug your communication!
 
