@@ -1549,7 +1549,7 @@ DomotigaPlatform.prototype.setOutletState = function (thisDevice, boolvalue, cal
     var OnOff = (boolvalue == 1) ? "On" : "Off";
 
     var callbackWasCalled = false;
-    this.domotigaSetValue(thisDevice, thisDevice.valueOutlet, OnOff, function (err) {
+    this.domotigaSetValue(thisDevice, thisDevice.valueOutlet, boolvalue, function (err) {
         if (callbackWasCalled)
             self.log.warn("WARNING: domotigaSetValue called its callback more than once! Discarding the second one.");
 
@@ -2589,8 +2589,9 @@ DomotigaPlatform.prototype.executeCommand = function (command, callback) {
 	command  = command.replace(/\$\w+/g,"");
 
 	if ( self.debug) {
-		self.log("=> %s",command);
 	}
+		self.log("=> %s",command);
+
 	exec(command, function (error, stdout, stderr) {
 		if ( error ) {
 			self.log.error("	==> %s ", error);
@@ -2615,7 +2616,7 @@ DomotigaPlatform.prototype.getValueCommand = function (thisDevice, deviceValueNo
 	cmd = cmd.replace(/\$property/,deviceValueNo);	// brightness, hue, etc.
 	cmd = cmd.replace(/\$flag/,deviceValueNo);		//
 	cmd = cmd.replace(/\$value/,deviceValueNo);		//
-	
+
 	self.executeCommand(cmd,function (error, result) {
 		if ( error) {
 			callback(error);
@@ -2625,17 +2626,21 @@ DomotigaPlatform.prototype.getValueCommand = function (thisDevice, deviceValueNo
 	});
 }
 
-DomotigaPlatform.prototype.setValueCommand = function (thisDevice, deviceValueNo, value, callback) {
+DomotigaPlatform.prototype.setValueCommand = function (thisDevice, deviceValueNo, state, callback) {
 	var self = this;
 	var cmd = thisDevice.command;
 	//	cmd = cmd + ' ' + thisDevice.flags;
 
 	// replace placeholder
 	cmd = cmd.replace(/\$device/,thisDevice.device);
-	cmd = cmd.replace(/\$property/,deviceValueNo);	// brightness, hue, etc.
-	cmd = cmd.replace(/\$flag/,deviceValueNo);		// - same -
-    cmd = cmd.replace(/\$state/,value);				//
-    cmd = cmd.replace(/\$value/,value);				//
+
+	cmd = cmd.replace(/\$property/,deviceValueNo);
+	cmd = cmd.replace(/\$deviceValue/,deviceValueNo);
+	cmd = cmd.replace(/\$deviceValueNo/,deviceValueNo);
+	cmd = cmd.replace(/\$value/,deviceValueNo);
+	cmd = cmd.replace(/\$flag/,deviceValueNo);
+	cmd = cmd.replace(/\$state/,state);
+	
     // for cached values only: create additional RGB value for all hsl changes
     // (works only with value caching, because iOS sends only changed value but NOT all HSL values for RGB-conversion)
 	cmd = cmd.replace(/\$rgb/,"RGB_NOT_IMPLEMENTED_YET");
