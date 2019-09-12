@@ -2524,8 +2524,19 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 }
 
 
+
 // ------------------------------------------------------------------------------------------------
-// BACKEND: url
+// BACKEND: Standard URL call (query string via GET or POST)
+// ------------------------------------------------------------------------------------------------
+
+//
+// TODO
+//
+// GET: thisDevice.endpoint?method=device.get&device_id=thisDevice.device&valuenum=deviceValueNo
+// SET: thisDevice.endpoint?method=device.set&device_id=thisDevice.device&valuenum=deviceValueNo&value=value
+
+// ------------------------------------------------------------------------------------------------
+// BACKEND: JSON RPC Call
 // ------------------------------------------------------------------------------------------------
 
 DomotigaPlatform.prototype.getValueEndpoint = function (thisDevice, deviceValueNo, callback) {
