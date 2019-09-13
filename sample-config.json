@@ -15,7 +15,14 @@
             "host": "localhost",
             "port": "9090",
             "devices": [
-				{
+        {
+  					"name": "Fancy color light behind an url endpoint",
+  					"service": "Light",
+  					"device":"id_of_remote_lightbulb",
+  					"color":true,
+  					"url": "http://sensor.local/bin/rgb.controller"
+        },
+        {
 					"name": "Fancy color light",
 					"service": "Light",
 					"device":"id_of_lightbulb",
@@ -23,7 +30,7 @@
 					"command": "/bin/rgb.controller.sh -d $device -f $type -s $value"
 				},
 				{
-					"name": "Fancy dimmable light",
+					"name": "Fancy dimmable light on JSON endpoint",
 					"service": "Light",
 					"device":"id_of_lightbulb2",
 					"brightness":true,
@@ -38,21 +45,21 @@
 					"maxTemperature": 9,
 					"command": "/bin/read.temperature.sh"
 				},
-                {
-                    "name": "Sensor garden",
-                    "service": "TemperatureSensor",
-                    "manufacturer": "DIY",
-                    "model": "TinyTX",
-                    "device": "81",
-                    "valueTemperature": "1",
-                    "valueHumidity": "2",
-                    "valueAirPressure": "3",
-                    "valueBattery": "4",
-                    "batteryVoltage": 3300,
-					"batteryVoltageLimit": 3000,
-                    "polling": true,
-                    "pollInMs": "1000"
-                },
+        {
+            "name": "Sensor garden",
+            "service": "TemperatureSensor",
+            "manufacturer": "DIY",
+            "model": "TinyTX",
+            "device": "81",
+            "valueTemperature": "1",
+            "valueHumidity": "2",
+            "valueAirPressure": "3",
+            "valueBattery": "4",
+            "batteryVoltage": 3300,
+	          "batteryVoltageLimit": 3000,
+            "polling": true,
+            "pollInMs": "1000"
+        },
                 {
                     "name": "Sensor gardenhouse",
                     "service": "HumiditySensor",

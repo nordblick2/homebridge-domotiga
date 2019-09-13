@@ -6,7 +6,7 @@ var path = require('path');
 var fs = require('fs');
 
 const exec = require('child_process').exec;	// ... for command execution
-const url = require('url');					// ... for url parsing
+const url = require('url');					        // ... for url parsing
 
 module.exports = function (homebridge) {
     console.log("homebridge API version: " + homebridge.version);
@@ -169,7 +169,7 @@ function DomotigaPlatform(log, config, api) {
 		// ------------------------------------------------------------
 		// backend configuration
 		// ------------------------------------------------------------
-  		if ( this.config.endpoint) {
+  	if ( this.config.endpoint) {
 			this.backend = "endpoint";
 			if (this.config.endpoint.toLowerCase() == "domotiga") {
 				this.endpoint = "http://localhost:9000/";
@@ -184,9 +184,18 @@ function DomotigaPlatform(log, config, api) {
 			});
 		} else if (this.config.file){
 			this.backend = "file";
+      // TODO check file presence
 		} else if (this.config.command){
 			this.backend = "command";
-		} else {
+      // TODO check command (readable | executable)
+    } else if ( this.config.url) {
+      this.backend = "url";
+      self.validateEndpoint(this.url,function(err,succ) {
+				if ( err ) {
+					self.log.error("config.json: Global url probably invalid: %s (%s)",this.url,err);
+				}
+			});
+    } else {
 			self.log.warn("config.json: No default backend given. Backend must configured in all accessories separately");
 		}
 
@@ -216,8 +225,20 @@ DomotigaPlatform.prototype.validateEndpoint = function (url, callback) {
 		} );
 	}
 	catch(err){
-		callback("Invalid endpoint",false);
+		callback("Invalid endpoint/url",false);
 	}
+}
+
+DomotigaPlatform.prototype.validateCommand = function (command, callback) {
+	var self = this;
+  // TODO
+	callback("Command validation not implemented yet",false);
+}
+
+DomotigaPlatform.prototype.validateFile = function (file, callback) {
+	var self = this;
+  // TODO
+	callback("File validation not implemented yet",false);
 }
 
 // Method to restore accessories from cache
@@ -347,6 +368,12 @@ DomotigaPlatform.prototype.addAccessory = function (data) {
 			accessory.context.backend = "endpoint";
 			accessory.context.endpoint = data.endpoint;
 		}
+
+    // backend url
+    if (data.url) {
+      accessory.context.backend = "url";
+      accessory.context.url = data.url;
+    }
 
 		// backend --> command="executable"
 		if ( data.command) {
@@ -2405,7 +2432,7 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 	try {
 		data = JSON.parse(data);
 	} catch (e) {
-		//
+		// TODO
 	}
 
 
@@ -2524,17 +2551,47 @@ DomotigaPlatform.prototype.parseResponseData = function(thisDevice, source, devi
 }
 
 
-
 // ------------------------------------------------------------------------------------------------
 // BACKEND: Standard URL call (query string via GET or POST)
 // ------------------------------------------------------------------------------------------------
 
-//
-// TODO
-//
 // GET: thisDevice.endpoint?method=device.get&device_id=thisDevice.device&valuenum=deviceValueNo
-// SET: thisDevice.endpoint?method=device.set&device_id=thisDevice.device&valuenum=deviceValueNo&value=value
+//encodeURI();
+DomotigaPlatform.prototype.getValueURL = function (thisDevice, deviceValueNo, callback) {
+	var self = this;
+  var url = sprintf("%s?id=1&method=device.get&device_id=%s&valuenum=%s",thisDevice.url,thisDevice.device,deviceValueNo);
 
+  JSONRequest(url, {}, function (err, data) {
+    if ( err ) {
+      if ( self.debug ) {
+        self.log("%s: %s", thisDevice.name, url);
+        if (data) self.log(data);
+      }
+      callback(err);
+    } else {
+      self.parseResponseData(thisDevice, thisDevice.endpoint, deviceValueNo, data, callback);
+    }
+  });
+
+
+}
+
+// SET: thisDevice.endpoint?method=device.set&device_id=thisDevice.device&valuenum=deviceValueNo&value=value
+DomotigaPlatform.prototype.setValueURL = function (thisDevice, deviceValueNo, value, callback) {
+	var self = this;
+  var url = sprintf("%s?id=1&method=device.get&device_id=%s&valuenum=%s",thisDevice.url,thisDevice.device,deviceValueNo);
+
+	JSONRequest(url, {}, function (err, data) {
+		if ( self.debug) {
+			self.log(" >> %s",url);
+			self.log(" << %s", JSON.stringify(data));
+		}
+		if (err) {
+			self.log.error("Sorry err: ", err);
+		}
+		callback(err);
+	});
+}
 // ------------------------------------------------------------------------------------------------
 // BACKEND: JSON RPC Call
 // ------------------------------------------------------------------------------------------------
@@ -2651,7 +2708,7 @@ DomotigaPlatform.prototype.setValueCommand = function (thisDevice, deviceValueNo
 	cmd = cmd.replace(/\$value/,deviceValueNo);
 	cmd = cmd.replace(/\$flag/,deviceValueNo);
 	cmd = cmd.replace(/\$state/,state);
-	
+
     // for cached values only: create additional RGB value for all hsl changes
     // (works only with value caching, because iOS sends only changed value but NOT all HSL values for RGB-conversion)
 	cmd = cmd.replace(/\$rgb/,"RGB_NOT_IMPLEMENTED_YET");
@@ -2734,6 +2791,10 @@ DomotigaPlatform.prototype.domotigaSetValue = function (thisDevice, deviceValueN
 	};
 
 	switch (thisDevice.backend) {
+    case "url":
+    self.setValueEndpointURL(thisDevice, deviceValueNo, value, resultHandler);
+      break;
+
 		case "endpoint":
 			self.setValueEndpoint(thisDevice, deviceValueNo, value, resultHandler);
 			break;
@@ -2747,7 +2808,7 @@ DomotigaPlatform.prototype.domotigaSetValue = function (thisDevice, deviceValueN
 			break;
 
 		default:
-            // should never happend -> TODO check invalid backend and startup
+      // should never happend (or backend type checks failes at startup :)
 			self.log.warn("%s: setValue: Unsupported backend: %s ", thisDevice.name, thisDevice.backend);
 			callback();
 	}
@@ -2781,6 +2842,9 @@ DomotigaPlatform.prototype.domotigaGetValue = function (thisDevice, deviceValueN
 	};
 
 	switch ( thisDevice.backend ) {
+    case "url":
+			self.getValueURL(thisDevice, deviceValueNo, resultHandler);
+			break;
 		case "endpoint":
 			self.getValueEndpoint(thisDevice, deviceValueNo, resultHandler);
 			break;
